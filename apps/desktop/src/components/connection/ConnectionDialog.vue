@@ -17,13 +17,14 @@ import type { ConnectionConfig, DatabaseType, JdbcDriverInfo, JdbcMavenBundleInf
 import type { MqAdminConfig, MqAuth, MqSystemKind } from "@/types/mq";
 import type { NacosAdminConfig, NacosAuthConfig } from "@/types/nacos";
 import { useConnectionStore } from "@/stores/connectionStore";
+import { REDIS_SCAN_PAGE_SIZE_DEFAULT, REDIS_SCAN_PAGE_SIZE_MIN, REDIS_SCAN_PAGE_SIZE_MAX, REDIS_SCAN_PAGE_SIZE_OPTIONS } from "@/lib/redisKeyPattern";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useToast } from "@/composables/useToast";
 import DatabaseIcon from "@/components/icons/DatabaseIcon.vue";
 import * as api from "@/lib/api";
 import { isTauriRuntime } from "@/lib/tauriRuntime";
 import { applyParsedConnectionUrl, normalizeMongoConnectionString, parseConnectionUrl } from "@/lib/connectionUrl";
-import type { ConnectionDeepLinkDraft } from "@/lib/connectionDeepLink";
+import { parseConnectionDeepLink, type ConnectionDeepLinkDraft } from "@/lib/connectionDeepLink";
 import { connectionUrlPlaceholder as getUrlPlaceholder } from "@/lib/connectionPresentation";
 import { h2ConnectionModeForConfig, h2FileJdbcUrl, h2FilePathFromJdbcUrl, type H2ConnectionMode } from "@/lib/h2Connection";
 import { firstZooKeeperEndpoint, normalizeZooKeeperConnectString } from "@/lib/zookeeperConnection";
@@ -152,6 +153,7 @@ const defaultForm = (): ConnectionForm => ({
   redis_sentinel_tls: false,
   redis_cluster_nodes: "",
   redis_key_separator: ":",
+  redis_scan_page_size: REDIS_SCAN_PAGE_SIZE_DEFAULT,
   etcd_endpoints: "",
   gbase_server: "",
   informix_server: "",
@@ -924,6 +926,7 @@ watch(
         redis_sentinel_tls: config.redis_sentinel_tls || false,
         redis_cluster_nodes: config.redis_cluster_nodes || "",
         redis_key_separator: config.redis_key_separator ?? ":",
+        redis_scan_page_size: config.redis_scan_page_size ?? REDIS_SCAN_PAGE_SIZE_DEFAULT,
         etcd_endpoints: config.etcd_endpoints || "",
         informix_server: config.informix_server || "",
         read_only: config.read_only || false,
@@ -1461,6 +1464,12 @@ async function testConnection() {
 
 function applyConnectionUrlToForm(input: string): boolean {
   try {
+    const draft = parseConnectionDeepLink(input);
+    if (draft) {
+      applyConnectionDraftToForm({ ...draft, oneTime: undefined });
+      return true;
+    }
+
     const parsed = parseConnectionUrl(input, selectedType.value);
     form.value = applyParsedConnectionUrl(form.value, parsed);
     selectedType.value = parsed.driverProfile;
@@ -1573,6 +1582,7 @@ function connectionConfigForSubmit(id: string): ConnectionConfig {
     config.redis_sentinel_tls = undefined;
     config.redis_cluster_nodes = undefined;
     config.redis_key_separator = undefined;
+    config.redis_scan_page_size = undefined;
   } else if (config.redis_connection_mode === "sentinel") {
     config.redis_sentinel_master = config.redis_sentinel_master?.trim() || "";
     config.redis_sentinel_nodes = normalizeRedisSentinelNodes(config.redis_sentinel_nodes || "");
@@ -1606,6 +1616,8 @@ function connectionConfigForSubmit(id: string): ConnectionConfig {
   }
   if (config.db_type === "redis") {
     config.redis_key_separator = config.redis_key_separator?.trim() ?? ":";
+    const scanSize = Number(config.redis_scan_page_size);
+    config.redis_scan_page_size = Number.isFinite(scanSize) && scanSize >= REDIS_SCAN_PAGE_SIZE_MIN && scanSize <= REDIS_SCAN_PAGE_SIZE_MAX ? Math.round(scanSize) : REDIS_SCAN_PAGE_SIZE_DEFAULT;
   }
   if (config.db_type === "zookeeper") {
     const normalizedConnectString = normalizeZooKeeperConnectString(config.connection_string || "");
@@ -2140,8 +2152,7 @@ function submitOneTimePrefill(draft: ConnectionDeepLinkDraft) {
   void nextTick(() => save());
 }
 
-function applyConnectionPrefill(draft: ConnectionDeepLinkDraft) {
-  resetForm();
+function applyConnectionDraftToForm(draft: ConnectionDeepLinkDraft) {
   applyProfile(draft.driverProfile);
   form.value = {
     ...form.value,
@@ -2177,6 +2188,11 @@ function applyConnectionPrefill(draft: ConnectionDeepLinkDraft) {
   dialogStep.value = "config";
   configTab.value = "connection";
   resetTestState();
+}
+
+function applyConnectionPrefill(draft: ConnectionDeepLinkDraft) {
+  resetForm();
+  applyConnectionDraftToForm(draft);
   submitOneTimePrefill(draft);
 }
 
@@ -3504,7 +3520,9 @@ function openExternalUrl(url: string) {
                                 ? 'OAuthType=0;OAuthServiceAcctEmail=svc@project.iam.gserviceaccount.com;OAuthPvtKeyPath=/path/key.json'
                                 : form.db_type === 'informix'
                                   ? 'CLIENT_LOCALE=en_US.utf8;DB_LOCALE=en_US.utf8'
-                                  : 'sslmode=disable'
+                                  : form.db_type === 'influxdb'
+                                    ? 'epoch=ms'
+                                    : 'sslmode=disable'
                       "
                     />
                   </div>
@@ -3858,6 +3876,22 @@ function openExternalUrl(url: string) {
                     <input type="checkbox" v-model="form.read_only" class="mr-0" />
                     <span class="text-xs text-muted-foreground">{{ t("connection.readOnlyHint") }}</span>
                   </label>
+                </div>
+                <div v-show="form.db_type === 'redis'" class="grid grid-cols-4 items-center gap-4">
+                  <Label class="text-right text-xs">{{ t("settings.redisScanPageSize") }}</Label>
+                  <div class="col-span-3 flex flex-col gap-1">
+                    <Select :model-value="String(form.redis_scan_page_size ?? REDIS_SCAN_PAGE_SIZE_DEFAULT)" @update:model-value="form.redis_scan_page_size = Number($event)">
+                      <SelectTrigger>
+                        <SelectValue :placeholder="t('settings.redisScanPageSize')" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem v-for="size in REDIS_SCAN_PAGE_SIZE_OPTIONS" :key="size" :value="String(size)">
+                          {{ t("settings.redisScanPageSizeOption", { count: size }) }}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p class="text-xs text-muted-foreground">{{ t("settings.redisScanPageSizeDescription") }}</p>
+                  </div>
                 </div>
               </div>
             </TabsContent>

@@ -252,10 +252,17 @@ export interface AiMessage {
   content: string;
 }
 
+export interface AiTaskContract {
+  action?: string;
+  mode?: string;
+  userRequest?: string;
+}
+
 export interface AiCompletionRequest {
   config: AiConfig;
   systemPrompt: string;
   messages: AiMessage[];
+  taskContract?: AiTaskContract;
   maxTokens?: number;
   temperature?: number;
 }
@@ -560,6 +567,10 @@ export async function listSchemaInfos(connectionId: string, database: string): P
 
 export async function getColumns(connectionId: string, database: string, schema: string, table: string): Promise<ColumnInfo[]> {
   return invoke("get_columns", { connectionId, database, schema, table });
+}
+
+export async function listDataTypes(connectionId: string, database: string): Promise<string[]> {
+  return invoke("list_data_types", { connectionId, database });
 }
 
 export async function executeQuery(
@@ -1611,7 +1622,7 @@ export async function startTransfer(request: TransferRequest, onProgress: (progr
         unlisten = await listen<TransferProgress>("transfer-progress", (event) => {
           if (event.payload.transferId !== request.transferId) return;
           onProgress(event.payload);
-          if (event.payload.status === "done" || event.payload.status === "cancelled") {
+          if (event.payload.status === "done" || event.payload.status === "error" || event.payload.status === "cancelled") {
             unlisten?.();
             resolve();
           }

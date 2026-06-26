@@ -122,6 +122,7 @@ export const listCompletionObjects = forward("listCompletionObjects");
 export const completionAssistantSearch = forward("completionAssistantSearch");
 export const getObjectSource = forward("getObjectSource");
 export const getColumns = forward("getColumns");
+export const listDataTypes = forward("listDataTypes");
 export const listIndexes = forward("listIndexes");
 export const listForeignKeys = forward("listForeignKeys");
 export const listTriggers = forward("listTriggers");
@@ -406,6 +407,7 @@ export const loadSidebarLayout = forward("loadSidebarLayout");
 export type {
   AiMessage,
   AiCompletionRequest,
+  AiTaskContract,
   AiStreamChunk,
   AiModelInfo,
   AiChatMessage,

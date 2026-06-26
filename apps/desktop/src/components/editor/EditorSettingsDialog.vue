@@ -66,6 +66,7 @@ import { SHORTCUT_DEFINITIONS, findShortcutConflict, normalizeShortcutSettings, 
 import { normalizeSidebarHiddenTablePrefixes } from "@/lib/sidebarTableNameDisplay";
 import { normalizeSqlFormatterSettings, type SqlFormatterSettings } from "@/lib/sqlFormatterConfig";
 import { EMPTY_TABLE_COLUMN_TEMPLATE_DATA_TYPE, parseTableColumnTemplateFields, TABLE_COLUMN_TEMPLATE_DATABASE_TYPES } from "@/lib/tableColumnTemplates";
+import { buildMcpCodexConfig, buildMcpJsonConfig, buildMcpOpenCodeConfig, buildMcpVsCodeConfig, type McpEnvEntry } from "@/lib/mcpConfigTemplates";
 import { combineDataTypeForDatabase, getDataTypeOptions, getDefaultLengthForType, isDataTypeLengthDisabled, splitDataType } from "@/lib/tableStructureEditorState";
 import type { DatabaseType, SqlSnippet } from "@/types/database";
 import { uuid } from "@/lib/utils";
@@ -78,6 +79,7 @@ import { useConnectionStore } from "@/stores/connectionStore";
 import { useSavedSqlStore } from "@/stores/savedSqlStore";
 import { currentLocale, setLocale, type Locale } from "@/i18n";
 import { LOCALE_OPTIONS } from "@/lib/localeOptions";
+import { DEFAULT_WEB_DAV_AUTO_UPLOAD_INTERVAL_MINUTES, DEFAULT_WEB_DAV_REMOTE_PATH, normalizedWebDavAutoUploadInterval, writeWebDavAutoUploadFields } from "@/lib/webdavAutoUploadConfig";
 
 const { t } = useI18n();
 const settingsStore = useSettingsStore();
@@ -207,7 +209,6 @@ const editTableColumnTemplateDatabaseType = ref<DatabaseType>(TABLE_COLUMN_TEMPL
 const tableColumnTemplateSectionRef = ref<HTMLElement | null>(null);
 const draggedTableColumnTemplateRowId = ref<string | null>(null);
 let tableColumnTemplatePointerDragCleanup: (() => void) | null = null;
-const editRedisScanPageSize = ref(settingsStore.editorSettings.redisScanPageSize);
 const editShortcuts = ref(normalizeShortcutSettings(settingsStore.editorSettings.shortcuts));
 const editSqlFormatter = ref<SqlFormatterSettings>(normalizeSqlFormatterSettings(settingsStore.editorSettings.sqlFormatter));
 const sqlFormatterConfigValid = ref(true);
@@ -228,7 +229,6 @@ const editExportRowLimit = ref(settingsStore.editorSettings.exportRowLimit);
 const editQueryExportKeysetOptimizationEnabled = ref(settingsStore.editorSettings.queryExportKeysetOptimizationEnabled);
 const editUpdateDownloadSource = ref<UpdateDownloadSource>(settingsStore.editorSettings.updateDownloadSource);
 const editToolbarItems = ref({ ...settingsStore.editorSettings.toolbarItems });
-const redisScanPageSizeOptions = [200, 1000, 5000, 10000];
 const systemFonts = ref<string[]>([]);
 const systemFontsLoading = ref(false);
 const systemFontsLoaded = ref(false);
@@ -479,7 +479,6 @@ watch(
       editInfiniteScroll.value = settingsStore.editorSettings.infiniteScroll;
       editInfiniteScrollMaxRows.value = settingsStore.editorSettings.infiniteScrollMaxRows;
       editTableColumnTemplateRows.value = tableColumnTemplateRowsFromSettings(settingsStore.editorSettings.tableColumnTemplateFields);
-      editRedisScanPageSize.value = settingsStore.editorSettings.redisScanPageSize;
       editShortcuts.value = normalizeShortcutSettings(settingsStore.editorSettings.shortcuts);
       editSqlFormatter.value = normalizeSqlFormatterSettings(settingsStore.editorSettings.sqlFormatter);
       sqlFormatterConfigValid.value = true;
@@ -543,7 +542,6 @@ function hasChanges(): boolean {
     editInfiniteScroll.value !== settingsStore.editorSettings.infiniteScroll ||
     editInfiniteScrollMaxRows.value !== settingsStore.editorSettings.infiniteScrollMaxRows ||
     JSON.stringify(normalizedEditTableColumnTemplateFields.value) !== JSON.stringify(settingsStore.editorSettings.tableColumnTemplateFields) ||
-    editRedisScanPageSize.value !== settingsStore.editorSettings.redisScanPageSize ||
     JSON.stringify(editShortcuts.value) !== JSON.stringify(settingsStore.editorSettings.shortcuts) ||
     JSON.stringify(editSqlFormatter.value) !== JSON.stringify(normalizeSqlFormatterSettings(settingsStore.editorSettings.sqlFormatter)) ||
     editSidebarActivation.value !== settingsStore.editorSettings.sidebarActivation ||
@@ -588,7 +586,6 @@ async function persistSettings() {
     infiniteScroll: editInfiniteScroll.value,
     infiniteScrollMaxRows: editInfiniteScrollMaxRows.value,
     tableColumnTemplateFields: normalizedEditTableColumnTemplateFields.value,
-    redisScanPageSize: editRedisScanPageSize.value,
     shortcuts: editShortcuts.value,
     sqlFormatter: normalizeSqlFormatterSettings(editSqlFormatter.value),
     sidebarActivation: editSidebarActivation.value,
@@ -679,8 +676,6 @@ function resetDefaultsForTab(tab: SettingsCategory) {
     editExportRowLimitEnabled.value = DEFAULT_EDITOR_SETTINGS.exportRowLimitEnabled;
     editExportRowLimit.value = DEFAULT_EDITOR_SETTINGS.exportRowLimit;
     editQueryExportKeysetOptimizationEnabled.value = DEFAULT_EDITOR_SETTINGS.queryExportKeysetOptimizationEnabled;
-  } else if (tab === "redis") {
-    editRedisScanPageSize.value = DEFAULT_EDITOR_SETTINGS.redisScanPageSize;
   } else if (tab === "shortcuts") {
     editShortcuts.value = normalizeShortcutSettings(DEFAULT_EDITOR_SETTINGS.shortcuts);
   } else if (tab === "snippets") {
@@ -688,6 +683,52 @@ function resetDefaultsForTab(tab: SettingsCategory) {
   } else if (tab === "about") {
     editUpdateDownloadSource.value = DEFAULT_EDITOR_SETTINGS.updateDownloadSource;
   }
+}
+
+function resetAllDefaults() {
+  editFontFamily.value = DEFAULT_EDITOR_SETTINGS.fontFamily;
+  editFontSize.value = DEFAULT_EDITOR_SETTINGS.fontSize;
+  editUiScale.value = DEFAULT_EDITOR_SETTINGS.uiScale;
+  editTheme.value = DEFAULT_EDITOR_SETTINGS.theme;
+  editCustomThemes.value = [...DEFAULT_EDITOR_SETTINGS.customThemes];
+  editActiveCustomThemeId.value = DEFAULT_EDITOR_SETTINGS.activeCustomThemeId;
+  editExecuteMode.value = DEFAULT_EDITOR_SETTINGS.executeMode;
+  editShowExecutionTargetPicker.value = DEFAULT_EDITOR_SETTINGS.showExecutionTargetPicker;
+  editAutoAliasTables.value = DEFAULT_EDITOR_SETTINGS.autoAliasTables;
+  editWordWrap.value = DEFAULT_EDITOR_SETTINGS.wordWrap;
+  editConfirmDangerousSqlExecution.value = DEFAULT_EDITOR_SETTINGS.confirmDangerousSqlExecution;
+  editAppLayout.value = DEFAULT_EDITOR_SETTINGS.appLayout;
+  editShowTrayIcon.value = DEFAULT_DESKTOP_SETTINGS.show_tray_icon;
+  editQuitOnClose.value = DEFAULT_DESKTOP_SETTINGS.quit_on_close;
+  desktopCloseBehaviorResetPending.value = true;
+  editIconTheme.value = DEFAULT_DESKTOP_SETTINGS.icon_theme;
+  editDebugLoggingEnabled.value = DEFAULT_DESKTOP_SETTINGS.debug_logging_enabled;
+  editSidebarTablePageSize.value = DEFAULT_SIDEBAR_TABLE_PAGE_SIZE;
+  editShowColumnCommentsInHeader.value = DEFAULT_EDITOR_SETTINGS.showColumnCommentsInHeader;
+  editShowColumnTypesInHeader.value = DEFAULT_EDITOR_SETTINGS.showColumnTypesInHeader;
+  editCompactColumnHeaderActions.value = DEFAULT_EDITOR_SETTINGS.compactColumnHeaderActions;
+  editInfiniteScroll.value = DEFAULT_EDITOR_SETTINGS.infiniteScroll;
+  editInfiniteScrollMaxRows.value = DEFAULT_EDITOR_SETTINGS.infiniteScrollMaxRows;
+  editTableColumnTemplateRows.value = tableColumnTemplateRowsFromSettings(DEFAULT_EDITOR_SETTINGS.tableColumnTemplateFields);
+  editShortcuts.value = normalizeShortcutSettings(DEFAULT_EDITOR_SETTINGS.shortcuts);
+  editSqlFormatter.value = normalizeSqlFormatterSettings(DEFAULT_EDITOR_SETTINGS.sqlFormatter);
+  sqlFormatterConfigValid.value = true;
+  editSidebarActivation.value = DEFAULT_EDITOR_SETTINGS.sidebarActivation;
+  editSidebarObjectDisplay.value = DEFAULT_EDITOR_SETTINGS.sidebarObjectDisplay;
+  editAutoSelectActiveSidebarNode.value = DEFAULT_EDITOR_SETTINGS.autoSelectActiveSidebarNode;
+  editDisconnectTabHandlingMode.value = DEFAULT_EDITOR_SETTINGS.disconnectTabHandlingMode;
+  editReuseDataTab.value = DEFAULT_EDITOR_SETTINGS.reuseDataTab;
+  editUpdateNotificationsEnabled.value = DEFAULT_EDITOR_SETTINGS.updateNotificationsEnabled;
+  editSidebarHideTableComments.value = DEFAULT_EDITOR_SETTINGS.sidebarHideTableComments;
+  editSidebarAllowHorizontalScroll.value = DEFAULT_EDITOR_SETTINGS.sidebarAllowHorizontalScroll;
+  editSidebarHiddenTablePrefixes.value = DEFAULT_EDITOR_SETTINGS.sidebarHiddenTablePrefixes.join("\n");
+  editExportBatchSize.value = DEFAULT_EDITOR_SETTINGS.exportBatchSize;
+  editExportRowLimitEnabled.value = DEFAULT_EDITOR_SETTINGS.exportRowLimitEnabled;
+  editExportRowLimit.value = DEFAULT_EDITOR_SETTINGS.exportRowLimit;
+  editQueryExportKeysetOptimizationEnabled.value = DEFAULT_EDITOR_SETTINGS.queryExportKeysetOptimizationEnabled;
+  editUpdateDownloadSource.value = DEFAULT_EDITOR_SETTINGS.updateDownloadSource;
+  editToolbarItems.value = { ...DEFAULT_EDITOR_SETTINGS.toolbarItems };
+  editSnippets.value = DEFAULT_SQL_SNIPPETS.map((s) => ({ ...s }));
 }
 
 function addTableColumnTemplateRow() {
@@ -871,11 +912,6 @@ function onLocaleChange(v: any) {
   if (typeof v === "string") void setLocale(v as Locale);
 }
 
-function onRedisScanPageSizeChange(v: any) {
-  const value = Number(v);
-  if (redisScanPageSizeOptions.includes(value)) editRedisScanPageSize.value = value;
-}
-
 function onUpdateDownloadSourceChange(v: any) {
   if (v === "github" || v === "cnb") editUpdateDownloadSource.value = v;
 }
@@ -972,14 +1008,13 @@ function setSidebarActivation(value: "single" | "double") {
 const activeSettingsTab = ref("editor");
 const isWeb = !isTauriRuntime();
 const displayedAppVersion = computed(() => (props.appVersion ? `v${props.appVersion}` : ""));
-type SettingsCategory = "editor" | "formatter" | "appearance" | "navigation" | "data" | "redis" | "shortcuts" | "snippets" | "sync" | "ai" | "mcp" | "security" | "about";
+type SettingsCategory = "editor" | "formatter" | "appearance" | "navigation" | "data" | "shortcuts" | "snippets" | "sync" | "ai" | "mcp" | "security" | "about";
 const settingsCategoryNav = computed<{ value: SettingsCategory; label: string }[]>(() => [
   { value: "editor", label: t("settings.editorTab") },
   { value: "formatter", label: t("settings.sqlFormatterTab") },
   { value: "appearance", label: t("settings.appearanceTab") },
   { value: "navigation", label: t("settings.navigationTab") },
   { value: "data", label: t("settings.dataTab") },
-  { value: "redis", label: t("settings.redisTab") },
   { value: "shortcuts", label: t("settings.shortcutsTab") },
   { value: "snippets", label: t("settings.snippetsTab") },
   ...(isWeb ? [] : [{ value: "sync" as const, label: t("settings.syncTab") }]),
@@ -988,7 +1023,7 @@ const settingsCategoryNav = computed<{ value: SettingsCategory; label: string }[
   ...(isWeb ? [{ value: "security" as const, label: t("settings.securityTab") }] : []),
   { value: "about", label: t("settings.aboutTab") },
 ]);
-const settingsTabsWithApplyFooter = new Set<SettingsCategory>(["editor", "formatter", "appearance", "navigation", "data", "redis", "shortcuts", "snippets", "about"]);
+const settingsTabsWithApplyFooter = new Set<SettingsCategory>(["editor", "formatter", "appearance", "navigation", "data", "shortcuts", "snippets"]);
 
 function hasSettingsApplyFooter(value: SettingsCategory): boolean {
   return settingsTabsWithApplyFooter.has(value);
@@ -1030,19 +1065,22 @@ async function exportDebugLogs() {
 }
 
 // ---------- MCP Server ----------
+type McpConfigTab = "claude" | "cursor" | "trae" | "vscode" | "windsurf" | "codex" | "opencode";
+type McpCopyKind = "install" | `${McpConfigTab}-config`;
+
 const mcpStatus = ref<McpServerStatus | null>(null);
 const mcpStatusLoading = ref(false);
 const mcpStatusError = ref("");
-const mcpCopied = ref<"" | "install" | "claude-config" | "codex-config">("");
-const mcpConfigTab = ref<"claude" | "codex">("claude");
+const mcpCopied = ref<"" | McpCopyKind>("");
+const mcpConfigTab = ref<McpConfigTab>("claude");
 const mcpReadonlyMode = ref(false);
 const mcpAllowDangerous = ref(false);
 const mcpInstalling = ref(false);
 const mcpInstallMessage = ref("");
 const mcpInstallError = ref(false);
 
-const mcpEnvEntries = computed(() => {
-  const entries: Array<[string, string]> = [];
+const mcpEnvEntries = computed<McpEnvEntry[]>(() => {
+  const entries: McpEnvEntry[] = [];
   if (mcpReadonlyMode.value) {
     entries.push(["DBX_MCP_ALLOW_WRITES", "0"]);
   }
@@ -1052,32 +1090,13 @@ const mcpEnvEntries = computed(() => {
   return entries;
 });
 
-const mcpClaudeRecommendedConfig = computed(() => {
-  const config: Record<string, unknown> = {
-    mcpServers: {
-      dbx: {
-        command: "dbx-mcp-server",
-      } as Record<string, unknown>,
-    },
-  };
-  if (mcpEnvEntries.value.length > 0) {
-    const env = Object.fromEntries(mcpEnvEntries.value);
-    ((config.mcpServers as Record<string, any>).dbx as Record<string, unknown>).env = env;
-  }
-  return JSON.stringify(config, null, 2);
-});
+const mcpJsonRecommendedConfig = computed(() => buildMcpJsonConfig(mcpEnvEntries.value));
 
-const mcpCodexRecommendedConfig = computed(() => {
-  const lines = ["[mcp_servers.dbx]", 'command = "dbx-mcp-server"'];
-  if (mcpEnvEntries.value.length > 0) {
-    lines.push("");
-    lines.push("[mcp_servers.dbx.env]");
-    for (const [key, value] of mcpEnvEntries.value) {
-      lines.push(`${key} = "${value}"`);
-    }
-  }
-  return lines.join("\n");
-});
+const mcpVsCodeRecommendedConfig = computed(() => buildMcpVsCodeConfig(mcpEnvEntries.value));
+
+const mcpCodexRecommendedConfig = computed(() => buildMcpCodexConfig(mcpEnvEntries.value));
+
+const mcpOpenCodeRecommendedConfig = computed(() => buildMcpOpenCodeConfig(mcpEnvEntries.value));
 
 const mcpStatusTone = computed<"ok" | "warning" | "muted">(() => {
   if (!mcpStatus.value) return "muted";
@@ -1116,7 +1135,7 @@ async function refreshMcpStatus() {
   }
 }
 
-async function copyMcpText(kind: "install" | "claude-config" | "codex-config", value: string) {
+async function copyMcpText(kind: McpCopyKind, value: string) {
   mcpCopied.value = kind;
   try {
     await copyToClipboard(value);
@@ -1159,15 +1178,14 @@ const webdavUsername = ref(localStorage.getItem("dbx-webdav-username") || "");
 const webdavPassword = ref("");
 const webdavRememberPassword = ref(localStorage.getItem("dbx-webdav-remember-password") === "true");
 const webdavHasSavedPassword = ref(false);
-const webdavRemotePath = ref(localStorage.getItem("dbx-webdav-remote-path") || "DBX/sync/snapshot.json");
+const webdavRemotePath = ref(localStorage.getItem("dbx-webdav-remote-path") || DEFAULT_WEB_DAV_REMOTE_PATH);
 const webdavSyncSecrets = ref(false);
 const webdavSecretsPassphrase = ref("");
 const webdavAutoUploadEnabled = ref(localStorage.getItem("dbx-webdav-auto-upload-enabled") === "true");
-const webdavAutoUploadIntervalMinutes = ref(Number(localStorage.getItem("dbx-webdav-auto-upload-interval-minutes") || "30"));
+const webdavAutoUploadIntervalMinutes = ref(Number(localStorage.getItem("dbx-webdav-auto-upload-interval-minutes") || String(DEFAULT_WEB_DAV_AUTO_UPLOAD_INTERVAL_MINUTES)));
 const webdavBusy = ref<"" | "test" | "upload" | "download">("");
 const webdavMessage = ref("");
 const webdavError = ref(false);
-let webdavAutoUploadTimer: ReturnType<typeof window.setInterval> | undefined;
 
 const webdavReady = computed(() => !!webdavEndpoint.value.trim() && !webdavBusy.value && (!webdavSyncSecrets.value || !!webdavSecretsPassphrase.value.trim()));
 
@@ -1176,7 +1194,7 @@ function currentWebDavConfig(): WebDavConfig {
     endpoint: webdavEndpoint.value.trim(),
     username: webdavUsername.value.trim() || undefined,
     password: webdavPassword.value || undefined,
-    remotePath: webdavRemotePath.value.trim() || "DBX/sync/snapshot.json",
+    remotePath: webdavRemotePath.value.trim() || DEFAULT_WEB_DAV_REMOTE_PATH,
   };
 }
 
@@ -1186,11 +1204,11 @@ function currentWebDavAccountConfig(): WebDavConfig {
 }
 
 function rememberWebDavFields() {
-  localStorage.setItem("dbx-webdav-endpoint", webdavEndpoint.value.trim());
-  localStorage.setItem("dbx-webdav-username", webdavUsername.value.trim());
-  localStorage.setItem("dbx-webdav-remote-path", webdavRemotePath.value.trim() || "DBX/sync/snapshot.json");
-  localStorage.setItem("dbx-webdav-auto-upload-enabled", String(webdavAutoUploadEnabled.value));
-  localStorage.setItem("dbx-webdav-auto-upload-interval-minutes", String(normalizedWebDavAutoUploadInterval()));
+  writeWebDavAutoUploadFields(currentWebDavConfig(), {
+    enabled: webdavAutoUploadEnabled.value,
+    intervalMinutes: webdavAutoUploadIntervalMinutes.value,
+  });
+  window.dispatchEvent(new Event("dbx:webdav-auto-upload-config-changed"));
 }
 
 function setWebDavResult(message: string, error = false) {
@@ -1253,43 +1271,6 @@ async function uploadWebDavSnapshot() {
     const summary = await webdavSyncUpload(currentWebDavConfig(), settingsStore.editorSettings, webdavSyncSecrets.value ? webdavSecretsPassphrase.value : undefined);
     return t("settings.syncUploadSuccess", { bytes: summary.bytes, path: summary.remotePath });
   });
-}
-
-function normalizedWebDavAutoUploadInterval() {
-  const value = Number(webdavAutoUploadIntervalMinutes.value);
-  if (!Number.isFinite(value)) return 30;
-  return Math.max(1, Math.min(1440, Math.round(value)));
-}
-
-function scheduleWebDavAutoUpload() {
-  if (webdavAutoUploadTimer) {
-    window.clearInterval(webdavAutoUploadTimer);
-    webdavAutoUploadTimer = undefined;
-  }
-  if (!webdavAutoUploadEnabled.value) return;
-
-  const intervalMinutes = normalizedWebDavAutoUploadInterval();
-  webdavAutoUploadIntervalMinutes.value = intervalMinutes;
-  webdavAutoUploadTimer = window.setInterval(() => {
-    void runWebDavAutoUpload();
-  }, intervalMinutes * 60_000);
-}
-
-async function runWebDavAutoUpload() {
-  if (!webdavEndpoint.value.trim() || webdavBusy.value) return;
-  webdavBusy.value = "upload";
-  webdavMessage.value = "";
-  webdavError.value = false;
-  try {
-    rememberWebDavFields();
-    await applyWebDavPasswordPreference();
-    const summary = await webdavSyncUpload(currentWebDavConfig(), settingsStore.editorSettings, webdavSyncSecrets.value ? webdavSecretsPassphrase.value : undefined);
-    setWebDavResult(t("settings.syncAutoUploadSuccess", { bytes: summary.bytes, path: summary.remotePath }));
-  } catch (e: any) {
-    setWebDavResult(e?.message || String(e), true);
-  } finally {
-    webdavBusy.value = "";
-  }
 }
 
 async function downloadWebDavSnapshot() {
@@ -1371,8 +1352,8 @@ watch(webdavRememberPassword, (val) => {
   localStorage.setItem("dbx-webdav-remember-password", String(val));
 });
 watch([webdavAutoUploadEnabled, webdavAutoUploadIntervalMinutes], () => {
+  webdavAutoUploadIntervalMinutes.value = normalizedWebDavAutoUploadInterval(webdavAutoUploadIntervalMinutes.value);
   rememberWebDavFields();
-  scheduleWebDavAutoUpload();
 });
 
 watch(activeSettingsTab, (tab) => {
@@ -1386,17 +1367,12 @@ watch(activeSettingsTab, (tab) => {
 
 onMounted(() => {
   void refreshWebDavPasswordStatus();
-  scheduleWebDavAutoUpload();
   checkLayoutDescTruncation();
   checkIconThemeDescTruncation();
   initTruncationObservers();
 });
 
 onUnmounted(() => {
-  if (webdavAutoUploadTimer) {
-    window.clearInterval(webdavAutoUploadTimer);
-    webdavAutoUploadTimer = undefined;
-  }
   cleanupTableColumnTemplatePointerDrag();
   cleanupTruncationObservers();
 });
@@ -2694,23 +2670,6 @@ watch(
               </div>
             </section>
 
-            <section v-else-if="activeSettingsTab === 'redis'" class="flex flex-col gap-5 py-2">
-              <div class="space-y-2">
-                <Label>{{ t("settings.redisScanPageSize") }}</Label>
-                <Select :model-value="String(editRedisScanPageSize)" @update:model-value="onRedisScanPageSizeChange">
-                  <SelectTrigger>
-                    <SelectValue :placeholder="t('settings.redisScanPageSize')" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem v-for="size in redisScanPageSizeOptions" :key="size" :value="String(size)">
-                      {{ t("settings.redisScanPageSizeOption", { count: size }) }}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <p class="text-xs text-muted-foreground">{{ t("settings.redisScanPageSizeDescription") }}</p>
-              </div>
-            </section>
-
             <section v-else-if="activeSettingsTab === 'shortcuts'" class="flex flex-col gap-2 py-2">
               <div class="overflow-hidden rounded-md border border-border/70 bg-background">
                 <div v-for="definition in SHORTCUT_DEFINITIONS" :key="definition.id" class="group -mt-px grid gap-2 border-t border-border/70 px-3 py-2 transition-colors first:mt-0 first:border-t-0 hover:bg-muted/40 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
@@ -3247,18 +3206,83 @@ watch(
               <div class="space-y-2">
                 <Label>{{ t("settings.mcpConfig") }}</Label>
                 <Tabs v-model="mcpConfigTab" class="space-y-3">
-                  <TabsList>
+                  <TabsList class="max-w-full overflow-x-auto">
                     <TabsTrigger value="claude">Claude Code</TabsTrigger>
+                    <TabsTrigger value="cursor">Cursor</TabsTrigger>
+                    <TabsTrigger value="trae">TRAE</TabsTrigger>
+                    <TabsTrigger value="vscode">VS Code</TabsTrigger>
+                    <TabsTrigger value="windsurf">Windsurf</TabsTrigger>
                     <TabsTrigger value="codex">Codex</TabsTrigger>
+                    <TabsTrigger value="opencode">OpenCode</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="claude" class="m-0">
                     <div class="relative rounded-md border bg-background p-3">
-                      <pre class="overflow-x-auto whitespace-pre text-xs leading-relaxed"><code>{{ mcpClaudeRecommendedConfig }}</code></pre>
-                      <Button type="button" variant="outline" size="icon" class="absolute right-2 top-2 h-7 w-7" :title="t('common.copy')" @click="copyMcpText('claude-config', mcpClaudeRecommendedConfig)">
+                      <pre class="overflow-x-auto whitespace-pre text-xs leading-relaxed"><code>{{ mcpJsonRecommendedConfig }}</code></pre>
+                      <Button type="button" variant="outline" size="icon" class="absolute right-2 top-2 h-7 w-7" :title="t('common.copy')" @click="copyMcpText('claude-config', mcpJsonRecommendedConfig)">
                         <CheckCircle2 v-if="mcpCopied === 'claude-config'" class="h-3.5 w-3.5 text-green-500" />
                         <Copy v-else class="h-3.5 w-3.5" />
                       </Button>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="cursor" class="m-0">
+                    <div class="space-y-2">
+                      <div class="rounded-md border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                        {{ t("settings.mcpCursorConfigPath") }}
+                      </div>
+                      <div class="relative rounded-md border bg-background p-3">
+                        <pre class="overflow-x-auto whitespace-pre text-xs leading-relaxed"><code>{{ mcpJsonRecommendedConfig }}</code></pre>
+                        <Button type="button" variant="outline" size="icon" class="absolute right-2 top-2 h-7 w-7" :title="t('common.copy')" @click="copyMcpText('cursor-config', mcpJsonRecommendedConfig)">
+                          <CheckCircle2 v-if="mcpCopied === 'cursor-config'" class="h-3.5 w-3.5 text-green-500" />
+                          <Copy v-else class="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="trae" class="m-0">
+                    <div class="space-y-2">
+                      <div class="rounded-md border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                        {{ t("settings.mcpTraeConfigPath") }}
+                      </div>
+                      <div class="relative rounded-md border bg-background p-3">
+                        <pre class="overflow-x-auto whitespace-pre text-xs leading-relaxed"><code>{{ mcpJsonRecommendedConfig }}</code></pre>
+                        <Button type="button" variant="outline" size="icon" class="absolute right-2 top-2 h-7 w-7" :title="t('common.copy')" @click="copyMcpText('trae-config', mcpJsonRecommendedConfig)">
+                          <CheckCircle2 v-if="mcpCopied === 'trae-config'" class="h-3.5 w-3.5 text-green-500" />
+                          <Copy v-else class="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="vscode" class="m-0">
+                    <div class="space-y-2">
+                      <div class="rounded-md border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                        {{ t("settings.mcpVsCodeConfigPath") }}
+                      </div>
+                      <div class="relative rounded-md border bg-background p-3">
+                        <pre class="overflow-x-auto whitespace-pre text-xs leading-relaxed"><code>{{ mcpVsCodeRecommendedConfig }}</code></pre>
+                        <Button type="button" variant="outline" size="icon" class="absolute right-2 top-2 h-7 w-7" :title="t('common.copy')" @click="copyMcpText('vscode-config', mcpVsCodeRecommendedConfig)">
+                          <CheckCircle2 v-if="mcpCopied === 'vscode-config'" class="h-3.5 w-3.5 text-green-500" />
+                          <Copy v-else class="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="windsurf" class="m-0">
+                    <div class="space-y-2">
+                      <div class="rounded-md border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                        {{ t("settings.mcpWindsurfConfigPath") }}
+                      </div>
+                      <div class="relative rounded-md border bg-background p-3">
+                        <pre class="overflow-x-auto whitespace-pre text-xs leading-relaxed"><code>{{ mcpJsonRecommendedConfig }}</code></pre>
+                        <Button type="button" variant="outline" size="icon" class="absolute right-2 top-2 h-7 w-7" :title="t('common.copy')" @click="copyMcpText('windsurf-config', mcpJsonRecommendedConfig)">
+                          <CheckCircle2 v-if="mcpCopied === 'windsurf-config'" class="h-3.5 w-3.5 text-green-500" />
+                          <Copy v-else class="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   </TabsContent>
 
@@ -3271,6 +3295,21 @@ watch(
                         <pre class="overflow-x-auto whitespace-pre text-xs leading-relaxed"><code>{{ mcpCodexRecommendedConfig }}</code></pre>
                         <Button type="button" variant="outline" size="icon" class="absolute right-2 top-2 h-7 w-7" :title="t('common.copy')" @click="copyMcpText('codex-config', mcpCodexRecommendedConfig)">
                           <CheckCircle2 v-if="mcpCopied === 'codex-config'" class="h-3.5 w-3.5 text-green-500" />
+                          <Copy v-else class="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="opencode" class="m-0">
+                    <div class="space-y-2">
+                      <div class="rounded-md border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                        {{ t("settings.mcpOpenCodeConfigPath") }}
+                      </div>
+                      <div class="relative rounded-md border bg-background p-3">
+                        <pre class="overflow-x-auto whitespace-pre text-xs leading-relaxed"><code>{{ mcpOpenCodeRecommendedConfig }}</code></pre>
+                        <Button type="button" variant="outline" size="icon" class="absolute right-2 top-2 h-7 w-7" :title="t('common.copy')" @click="copyMcpText('opencode-config', mcpOpenCodeRecommendedConfig)">
+                          <CheckCircle2 v-if="mcpCopied === 'opencode-config'" class="h-3.5 w-3.5 text-green-500" />
                           <Copy v-else class="h-3.5 w-3.5" />
                         </Button>
                       </div>
@@ -3495,6 +3534,22 @@ watch(
             </Button>
             <Button :disabled="changingPassword || !oldPassword || !newPassword || !confirmNewPassword" @click="changePassword">
               {{ t("auth.changePassword") }}
+            </Button>
+          </DialogFooter>
+
+          <DialogFooter v-else-if="activeSettingsTab === 'about'" class="mx-0 mb-0 flex-row flex-wrap items-center justify-end gap-2 rounded-none border-t border-border/60 bg-transparent px-0 pb-0 pt-3 sm:flex-row sm:gap-2 [&>button]:w-auto [&>button]:shrink-0">
+            <Button variant="outline" @click="resetAllDefaults">
+              {{ t("settings.resetAllDefaults") }}
+            </Button>
+            <div class="flex-1" />
+            <Button variant="outline" @click="emit('update:open', false)">
+              {{ t("common.close") }}
+            </Button>
+            <Button :disabled="!hasChanges() || hasApplyBlocker" @click="applySettings">
+              {{ t("settings.apply") }}
+            </Button>
+            <Button :disabled="!hasChanges() || hasApplyBlocker" @click="applySettingsAndClose">
+              {{ t("settings.applyAndClose") }}
             </Button>
           </DialogFooter>
         </div>
