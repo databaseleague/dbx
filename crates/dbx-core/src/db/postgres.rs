@@ -1289,24 +1289,37 @@ impl ServerCertVerifier for NoPostgresCertVerification {
 
     fn verify_tls12_signature(
         &self,
-        message: &[u8],
+        _message: &[u8],
         cert: &CertificateDer<'_>,
-        dss: &rustls::DigitallySignedStruct,
+        _dss: &rustls::DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, rustls::Error> {
-        verify_tls12_signature(message, cert, dss, &self.provider.signature_verification_algorithms)
+        self.accept_tls_signature_for_unverified_cert(cert)
     }
 
     fn verify_tls13_signature(
         &self,
-        message: &[u8],
+        _message: &[u8],
         cert: &CertificateDer<'_>,
-        dss: &rustls::DigitallySignedStruct,
+        _dss: &rustls::DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, rustls::Error> {
-        verify_tls13_signature(message, cert, dss, &self.provider.signature_verification_algorithms)
+        self.accept_tls_signature_for_unverified_cert(cert)
     }
 
     fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
         self.provider.signature_verification_algorithms.supported_schemes()
+    }
+}
+
+impl NoPostgresCertVerification {
+    fn accept_tls_signature_for_unverified_cert(
+        &self,
+        _cert: &CertificateDer<'_>,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        // PostgreSQL sslmode=prefer/require does not authenticate the server certificate.
+        // Avoid rustls' default signature helpers here because they parse the certificate
+        // before chain verification and reject legacy server certificates that libpq/JDBC
+        // still accept in these non-verifying modes.
+        Ok(HandshakeSignatureValid::assertion())
     }
 }
 
@@ -3387,6 +3400,14 @@ mod tests {
             Err(error) => error,
         };
         assert!(error.contains("sslkey"));
+    }
+
+    #[test]
+    fn postgres_accept_all_tls_signature_does_not_parse_unverified_cert() {
+        let verifier = NoPostgresCertVerification { provider: Arc::new(rustls::crypto::aws_lc_rs::default_provider()) };
+        let malformed_cert = CertificateDer::from(vec![0x30, 0x03, 0x02, 0x01, 0x00]);
+
+        assert!(verifier.accept_tls_signature_for_unverified_cert(&malformed_cert).is_ok());
     }
 
     #[test]
