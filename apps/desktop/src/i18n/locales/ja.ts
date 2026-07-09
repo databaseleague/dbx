@@ -907,8 +907,6 @@ export default withEnglishFallback({
     nonTransactionalSaveHint: "{count}件の保留中の変更を1件ずつ保存します。途中で失敗した場合、それまでの成功した変更はロールバックされません。",
     keylessEditWarning: "主キーなし",
     keylessEditWarningHint: "このテーブルには主キーがありません。更新と削除はWHERE句にすべての元の行値を使用します。完全に重複する行はまとめて影響を受ける可能性があります。",
-    queryEditReady: "編集可能",
-    queryEditReadyHint: "この結果の書き込み可能なセルは「{table}」へ保存されます。保留中の変更アクションで確認して保存してください。",
     queryEditReadOnly: "読み取り専用の結果",
     queryEditUnsupported: {
       "not-select": "SELECTクエリの結果のみ直接編集できます。",

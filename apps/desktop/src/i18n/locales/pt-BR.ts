@@ -914,8 +914,6 @@ export default withEnglishFallback({
     nonTransactionalSaveHint: "Salvar {count} alteração(ões) pendente(s) uma a uma. Se uma falhar, as alterações bem-sucedidas anteriores não serão revertidas.",
     keylessEditWarning: "Sem chave primária",
     keylessEditWarningHint: "Esta tabela não possui chave primária. Atualizações e exclusões usam todos os valores originais da linha na cláusula WHERE; linhas exatamente duplicadas podem ser afetadas juntas.",
-    queryEditReady: "Editável",
-    queryEditReadyHint: "As células editáveis deste resultado são salvas em “{table}”. Use a ação de alterações pendentes para revisar e salvar.",
     queryEditReadOnly: "Resultado somente leitura",
     queryEditUnsupported: {
       "not-select": "Apenas resultados de consultas SELECT podem ser editados diretamente.",

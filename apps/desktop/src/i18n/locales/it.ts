@@ -913,8 +913,6 @@ export default withEnglishFallback({
     nonTransactionalSaveHint: "Salva {count} modifica/he in sospeso una ad una. In caso di errore, le modifiche salvate in precedenza non saranno annullate.",
     keylessEditWarning: "Nessuna chiave primaria",
     keylessEditWarningHint: "Questa tabella non ha chiavi primarie. Gli aggiornamenti e le eliminazioni utilizzano tutti i valori originali delle righe nella clausola WHERE; le righe duplicate esatte potrebbero essere influenzate contemporaneamente.",
-    queryEditReady: "Modificabile",
-    queryEditReadyHint: "Le celle modificabili in questo risultato vengono salvate in “{table}”. Usa l'azione delle modifiche in sospeso per rivedere e salvare.",
     queryEditReadOnly: "Risultato in sola lettura",
     queryEditUnsupported: {
       "not-select": "Only SELECT query results can be edited directly.",

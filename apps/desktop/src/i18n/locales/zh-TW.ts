@@ -914,8 +914,6 @@ export default withEnglishFallback({
     nonTransactionalSaveHint: "逐條儲存 {count} 項更改；如果中途失敗，前面已成功的更改不會回溯。",
     keylessEditWarning: "無主鍵定位",
     keylessEditWarningHint: "此資料表沒有主鍵。更新與刪除會在 WHERE 子句中使用所有原始資料列值；完全重複的資料列可能會一起受到影響。",
-    queryEditReady: "可編輯",
-    queryEditReadyHint: "此結果中的可寫儲存格會回寫到「{table}」。請透過待儲存按鈕檢視並儲存變更。",
     queryEditReadOnly: "唯讀結果",
     queryEditUnsupported: {
       "not-select": "只有 SELECT 查詢結果可以直接編輯。",

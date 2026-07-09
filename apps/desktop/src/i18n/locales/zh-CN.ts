@@ -973,8 +973,6 @@ export default withEnglishFallback({
     nonTransactionalSaveHint: "逐条保存 {count} 项更改；如果中途失败，前面已成功的更改不会回滚。",
     keylessEditWarning: "无主键定位",
     keylessEditWarningHint: "这张表没有主键。保存更新或删除时会使用整行原始值作为 WHERE 条件；如果存在完全重复的行，可能会影响多行。",
-    queryEditReady: "可编辑",
-    queryEditReadyHint: "此结果中的可写单元格会回写到“{table}”。请通过待保存按钮查看并保存更改。",
     queryEditReadOnly: "只读结果",
     queryEditUnsupported: {
       "not-select": "只有 SELECT 查询结果可以直接编辑。",

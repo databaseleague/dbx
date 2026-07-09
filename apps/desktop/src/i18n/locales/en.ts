@@ -971,8 +971,6 @@ export default {
     nonTransactionalSaveHint: "Save {count} pending change(s) one by one. If one fails, earlier successful changes will not be rolled back.",
     keylessEditWarning: "No primary key",
     keylessEditWarningHint: "This table has no primary key. Updates and deletes use all original row values in the WHERE clause; exact duplicate rows may be affected together.",
-    queryEditReady: "Editable",
-    queryEditReadyHint: "Writable cells in this result save back to “{table}”. Use the pending-changes action to review and save.",
     queryEditReadOnly: "Read-only result",
     queryEditUnsupported: {
       "not-select": "Only SELECT query results can be edited directly.",

@@ -193,7 +193,7 @@ type ConditionSuggestion = {
 
 type SortMenuValue = "local-asc" | "local-desc" | "database-asc" | "database-desc" | "clear";
 
-const props = defineProps<{
+interface DataGridProps {
   result: QueryResult;
   sql?: string;
   editable?: boolean;
@@ -234,7 +234,14 @@ const props = defineProps<{
   queryEditabilityReason?: QueryEditabilityReason;
   allowInsertRows?: boolean;
   allowDeleteRows?: boolean;
-}>();
+}
+
+const props = withDefaults(defineProps<DataGridProps>(), {
+  // Vue casts absent Boolean props to false unless the default is explicitly
+  // undefined; omitted row-action limits must keep normal table-data editing.
+  allowInsertRows: undefined,
+  allowDeleteRows: undefined,
+});
 
 const dataGridTraceId = uuid().slice(0, 8);
 const dataGridCreatedAt = performance.now();
@@ -3505,9 +3512,7 @@ watch(
     }
   },
 );
-const showQueryEditReadyBadge = computed(() => isResultsContext.value && hasData.value && !!props.editable && (!!props.tableMeta || !!props.customSaveHandler));
-const queryEditReadyTargetLabel = computed(() => props.tableMeta?.tableName ?? props.customSaveHandler?.targetLabel ?? "");
-const showQueryEditReadOnlyBadge = computed(() => isResultsContext.value && hasData.value && !showQueryEditReadyBadge.value && !!props.queryEditabilityReason);
+const showQueryEditReadOnlyBadge = computed(() => isResultsContext.value && hasData.value && !props.editable && !!props.queryEditabilityReason);
 const queryEditReadOnlyReason = computed(() => (props.queryEditabilityReason ? t(`grid.queryEditUnsupported.${props.queryEditabilityReason}`) : ""));
 const showKeylessEditWarning = computed(() => !!props.editable && !!props.tableMeta && canUseKeylessRowPredicate(props.databaseType, props.tableMeta.primaryKeys ?? []));
 const canShowWhereSearch = computed(() => !!props.onExecuteSql && !isResultsContext.value);
@@ -3943,7 +3948,6 @@ const showDataGridTopbar = computed(
     hasLocalColumnFilters.value ||
     canShowWhereSearch.value ||
     hasSearchBarSlot.value ||
-    showQueryEditReadyBadge.value ||
     showQueryEditReadOnlyBadge.value ||
     props.context !== "results" ||
     (!!props.editable && hasDataGridSaveTarget.value) ||
@@ -8833,17 +8837,7 @@ const gridContextMenuItems = computed<ContextMenuItem[]>(() => {
           </div>
 
           <div class="flex shrink-0 items-center gap-1 px-1 ml-auto" @wheel="onDataGridTopbarFixedActionWheel">
-            <Tooltip v-if="showQueryEditReadyBadge">
-              <TooltipTrigger as-child>
-                <div class="flex h-5 items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                  {{ t("grid.queryEditReady") }}
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" class="max-w-sm">
-                {{ t("grid.queryEditReadyHint", { table: queryEditReadyTargetLabel }) }}
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip v-else-if="showQueryEditReadOnlyBadge">
+            <Tooltip v-if="showQueryEditReadOnlyBadge">
               <TooltipTrigger as-child>
                 <div class="flex h-5 items-center gap-1 rounded border border-muted-foreground/30 bg-muted/60 px-1.5 text-xs font-medium text-muted-foreground">
                   {{ t("grid.queryEditReadOnly") }}
