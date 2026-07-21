@@ -4988,9 +4988,7 @@ const {
   copyRow,
   copyRowAsInsert,
   copyRowAsInsertWithoutPrimaryKeys,
-  prefetchRowAsInsertStatement,
   canCopyRowAsInsert,
-  prefetchRowAsUpdateStatement,
   copyRowAsUpdate,
   canCopyRowAsInsertWithoutPrimaryKeys,
   canCopyRowAsUpdate,
@@ -5001,10 +4999,7 @@ const {
   copySelectionJson,
   copySelectionSqlInList,
   copySelectionAsInsert,
-  prefetchSelectionAsInsertStatement,
-  canCopyPreparedSelectionInsert,
   canCopySelectionAsInsert,
-  selectionInsertRowCount,
   copySelectedRowsTsv,
   copySelectedRowsTsvWithHeaders,
   copyColumnNames,
@@ -5284,7 +5279,6 @@ function onTransposeCellContext(rowIndex: number, actualColIdx: number, event: M
   selectTransposeCell(rowIndex, actualColIdx, event);
   const item = displayItemAt(rowIndex);
   contextCell.value = item ? { rowId: item.id, rowIndex, col: actualColIdx } : null;
-  void prefetchCopyStatements();
 }
 
 watch([selectedRange, showCellDetail, isEditingDetail], () => {
@@ -6310,7 +6304,6 @@ function selectTransposeRecord(rowIndex: number, event?: MouseEvent) {
       selectRow(rowIndex);
     }
     contextCell.value = { rowId: item.id, rowIndex, col: -1 };
-    void prefetchCopyStatements();
   }
   gridRef.value?.focus({ preventScroll: true });
 }
@@ -6393,7 +6386,6 @@ function onHeaderContext(col: string, columnIndex: number) {
   }
   contextHeaderColumn.value = col;
   contextHeaderColumnIndex.value = columnIndex;
-  void prefetchCopyStatements();
 }
 async function copyHeaderColumn() {
   if (!contextHeaderColumn.value) return;
@@ -6459,14 +6451,12 @@ function onCellContext(rowId: number, rowIndex: number, colIdx: number, visibleC
   contextHeaderColumnIndex.value = null;
   contextCell.value = { rowId, rowIndex, col: colIdx };
   if (hasRowSelection.value && isRowSelected(rowId)) {
-    void prefetchCopyStatements();
     return;
   }
   clearRowSelection();
   if (!cellIsSelected(rowIndex, visibleColIdx)) {
     selectSingleCell(rowIndex, visibleColIdx);
   }
-  void prefetchCopyStatements();
 }
 
 function onCellEditTextareaInput(event: Event) {
@@ -6601,29 +6591,6 @@ function onRowContext(rowId: number, rowIndex: number) {
     clearCellSelection();
     selectedRowIds.value = new Set([rowId]);
     selection.lastClickedRowIndex.value = rowIndex;
-  }
-  void prefetchCopyStatements();
-}
-
-async function prefetchCopyStatements() {
-  if (canCopySelectionAsInsert.value) {
-    await prefetchSelectionAsInsertStatement();
-    if (selectionInsertRowCount.value > 1 && canCopyPreparedSelectionInsert()) {
-      await prefetchSelectionAsInsertStatement("row-by-row");
-    }
-  }
-  await prefetchRowAsInsertStatement(false);
-  if (isMultiRow.value) {
-    await prefetchRowAsInsertStatement(false, "row-by-row");
-  }
-  if (canCopyRowAsInsertWithoutPrimaryKeys.value) {
-    await prefetchRowAsInsertStatement(true);
-    if (isMultiRow.value) {
-      await prefetchRowAsInsertStatement(true, "row-by-row");
-    }
-  }
-  if (canCopyRowAsUpdate.value) {
-    await prefetchRowAsUpdateStatement();
   }
 }
 
@@ -7309,10 +7276,10 @@ function selectionSubmenu(): ContextMenuItem {
   const insertItems: ContextMenuItem[] =
     selectedCells.value.rows.length > 1
       ? [
-          { label: t("grid.copySelectionInsertMerged"), action: () => copySelectionAsInsert("merged"), disabled: () => !canCopySelectionAsInsert.value || !canCopyPreparedSelectionInsert("merged") },
-          { label: t("grid.copySelectionInsertRowByRow"), action: () => copySelectionAsInsert("row-by-row"), disabled: () => !canCopySelectionAsInsert.value || !canCopyPreparedSelectionInsert("row-by-row") },
+          { label: t("grid.copySelectionInsertMerged"), action: () => void copySelectionAsInsert("merged"), disabled: () => !canCopySelectionAsInsert.value },
+          { label: t("grid.copySelectionInsertRowByRow"), action: () => void copySelectionAsInsert("row-by-row"), disabled: () => !canCopySelectionAsInsert.value },
         ]
-      : [{ label: t("grid.copySelectionInsert"), action: () => copySelectionAsInsert(), disabled: () => !canCopySelectionAsInsert.value || !canCopyPreparedSelectionInsert() }];
+      : [{ label: t("grid.copySelectionInsert"), action: () => void copySelectionAsInsert(), disabled: () => !canCopySelectionAsInsert.value }];
   return {
     label: t("grid.selection"),
     icon: SquareDashed,
